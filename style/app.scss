@@ -1,0 +1,23 @@
+.app-layout {
+  height: 100%;
+}
+
+.app-header {
+  padding: 0px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-center-layout {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 540px;
+}
+
+.app-login-card {
+  height: 320px;
+}

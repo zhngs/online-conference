@@ -21,3 +21,15 @@
 .app-login-card {
   height: 320px;
 }
+
+.app-right-layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.app-fullscreen-layout{
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+}

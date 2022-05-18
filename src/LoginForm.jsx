@@ -15,8 +15,8 @@ function LoginForm(props) {
         e.preventDefault();
         props.form.validateFields((err, values) => {
             if (!err) {
-                // const handleLogin = props.handleLogin;
-                // handleLogin(values);
+                const handleLogin = props.handleLogin;
+                handleLogin(values);
                 console.log("Received values of form: ", values);
             }
         });

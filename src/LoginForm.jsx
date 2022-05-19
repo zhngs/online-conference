@@ -3,12 +3,6 @@ import { Form, Icon, Input, Button, Checkbox } from 'antd'
 import "../style/login.scss";
 
 function LoginForm(props) {
-    console.log("login form props:", props)
-
-    useEffect(()=>{
-        console.log("enter login")
-    })
-
     const { getFieldDecorator } = props.form;
 
     const handleSubmit = e => {
@@ -48,7 +42,7 @@ function LoginForm(props) {
                  <Form.Item>
                     {getFieldDecorator('audioOnly', {
                         valuePropName: 'checked',
-                        initialValue: true,
+                        initialValue: false,
                     })(
                         <Checkbox>
                             Audio only

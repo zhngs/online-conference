@@ -10,6 +10,15 @@
   align-items: center;
 }
 
+.app-header-right {
+  margin-right: 8px;
+  min-width: 120px;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 .app-center-layout {
   display: flex;
   justify-content: center;

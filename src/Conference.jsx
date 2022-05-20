@@ -8,8 +8,8 @@ import * as Ion from "ion-sdk-js/lib/connector";
 function Conference(props, ref) {
 
     const [streams, setStreams] = useState([])
-    const [localStreamObj, setLocalStream] = useState({stream:null})
-    const [localScreenObj, setLocalScreen] = useState({stream:null})
+    const [localStreamObj, setLocalStreamObj] = useState({stream:null})
+    const [localScreenObj, setLocalScreenObj] = useState({stream:null})
     const [audioMuted, setAudioMuted] = useState(false)
     const [videoMuted, setVideoMuted] = useState(false)
 
@@ -19,9 +19,9 @@ function Conference(props, ref) {
             handleLocalStream(enabled) {
                 doHandleLocalStream(enabled)
             },
-            // handleScreenSharing(enabled) {
-            //     doHandleScreenSharing(enabled)
-            // },
+            handleScreenSharing(enabled) {
+                doHandleScreenSharing(enabled)
+            },
             muteMediaTrack(type, enabled) {
                 doMuteMediaTrack(type, enabled)
             },
@@ -37,14 +37,14 @@ function Conference(props, ref) {
         if (localStreamObj && localStreamObj.stream) {
             await unpublish(localStreamObj.stream)
             localStreamObj.stream = null
-            setLocalStream(localStreamObj)
+            setLocalStreamObj(localStreamObj)
         }
     
-        // if (localScreenObj && localScreenObj.stream) {
-        //     await unpublish(localScreenObj.stream)
-        //     localScreenObj.stream = null
-        //     setLocalScreen(localScreenObj)
-        // }
+        if (localScreenObj && localScreenObj.stream) {
+            await unpublish(localScreenObj.stream)
+            localScreenObj.stream = null
+            setLocalScreenObj(localScreenObj)
+        }
     
         console.log("doCleanUp streams=", streams)
         streams.map(async item => {
@@ -64,6 +64,33 @@ function Conference(props, ref) {
             })
         })
     }
+
+    const doHandleScreenSharing = async (enabled) => {
+        const {settings, rtc } = props;
+        if (enabled) {
+            let _stream = await Ion.LocalStream.getDisplayMedia({
+                codec: settings.codec.toUpperCase(),
+                resolution: settings.resolution,
+                bandwidth: settings.bandwidth,
+            })
+
+            setLocalScreenObj({stream: _stream});
+            await rtc.publish(_stream);
+            let track = _stream.getVideoTracks()[0];
+            if (track) {
+                track.addEventListener("ended", () => {
+                    // screenSharingClick(false);
+                    doHandleScreenSharing(false);
+                });
+            }
+        } else {
+            if (localScreenObj.stream) {
+                unpublish(localScreenObj.stream);
+                localScreenObj.stream = null
+                setLocalScreenObj({stream:null})
+            }
+        }
+    };
 
     //别的用户加入时会触发回调，在回调中可以拿到其他用户的stream和track，利用stream创建一个item加入到streams里
     //通过peers中item的id和stream的id对比，将peers中item的name赋值给stream.info.name，显示在视频窗口上
@@ -125,7 +152,7 @@ function Conference(props, ref) {
                 console.log("rtc.publish media=", media)
                 rtc.publish(media)
                 localStreamObj.stream = media
-                setLocalStream(localStreamObj)
+                setLocalStreamObj(localStreamObj)
             }).catch((e) => {
                 console.log("handleLocalStream error => " + e);
             });
@@ -133,7 +160,7 @@ function Conference(props, ref) {
             if (localStreamObj.stream) {
                 unpublish(localStreamObj.stream, rtc);
                 localStreamObj.stream = null;
-                setLocalStream(localStreamObj)
+                setLocalStreamObj(localStreamObj)
             }
         }
         doMuteMediaTrack("video", props.localVideoEnabled);
@@ -204,6 +231,21 @@ function Conference(props, ref) {
                 />
                 </div>
             )}
+
+            {localScreenObj.stream && (
+                <div className="conference-local-screen-layout">
+                    <LocalVideoView
+                        key={id + "-screen"}
+                        id={id + "-screen"}
+                        label="Screen Sharing"
+                        stream={localScreenObj.stream}
+                        audioMuted={false}
+                        videoMuted={false}
+                        videoType="localScreen"
+                    />
+                </div>
+            )}
+
             <div className="small-video-list-div">
                 <div className="small-video-list">
                     {streams.map((item, index) => {

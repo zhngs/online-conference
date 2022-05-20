@@ -12,6 +12,8 @@ import React, {useState, useEffect, useRef, forwardRef} from "react";
 import LoginForm from './LoginForm';
 import Conference from "./Conference";
 import MediaSettings from "./MediaSettings";
+import ChatFeed from "./chat";
+import Message from "./chat/Message";
 import MicrophoneIcon from "mdi-react/MicrophoneIcon";
 import MicrophoneOffIcon from "mdi-react/MicrophoneOffIcon";
 import HangupIcon from "mdi-react/PhoneHangupIcon";
@@ -38,17 +40,21 @@ const ForwardRefConference = forwardRef(Conference);
 function App() {
     const conference = useRef(null);
 
+    const [collapsed, setCollapsed] = useState(true);
     const [login, setLogin] = useState(false);
     const [loading, setLoading] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [loginInfo, setLoginInfo] = useState({});
     const [sid, setSid] = useState('');
     const [uid, setUid] = useState(uuidv4());
+    const [messages, setMessages] = useState([]);
     const [peers, setPeers] = useState([]);
     const [connector, setConnector] = useState(null);
     const [room, setRoom] = useState(null);
     const [rtc, setRTC] = useState(null);
     const [localAudioEnabled, setLocalAudioEnabled] = useState(true);
     const [localVideoEnabled, setLocalVideoEnabled] = useState(true);
+    const [screenSharingEnabled, setScreenSharingEnabled] = useState(false);
 
     let settings = {
         selectedAudioDevice: "",
@@ -88,6 +94,7 @@ function App() {
     const handleJoin = async (values) => {
         console.log("handleJoin values: ", values);
         setLoading(true);
+        setLoginInfo(values);
 
         let url = window.location.protocol + "//" + window.location.hostname + ":" + "5551";
         console.log("Connect url:" + url);
@@ -121,29 +128,55 @@ function App() {
 
             if (ev.state == Ion.PeerState.JOIN) {
                 notificationTip( "Peer Join", "peer => " + ev.peer.displayname+ ", join!");
+                onSystemMessage(ev.peer.displayname + ", join!");
             } else if (ev.state == Ion.PeerState.LEAVE) {
                 notificationTip( "Peer Leave", "peer => " + ev.peer.displayname + ", leave!");
+                onSystemMessage(ev.peer.displayname + ", leave!");
             }
 
-            let peerInfo = {
-                uid: ev.peer.uid,
-                name: ev.peer.displayname,
-                state: ev.state,
-            };
-            let _peers = peers;
-            let find = false;
-            _peers.forEach((item) => {
-                if (item.uid == ev.peer.uid) {
-                    item = peerInfo;
-                    find = true;
+            setPeers(peers=>{
+                let peerInfo = {
+                    uid: ev.peer.uid,
+                    name: ev.peer.displayname,
+                    state: ev.state,
+                };
+                let find = false;
+                peers.forEach((item) => {
+                    if (item.uid == ev.peer.uid) {
+                        item = peerInfo;
+                        find = true;
+                    }
+                });
+                if (!find) {
+                    peers.push(peerInfo);
                 }
+                let res = [...peers]
+                console.log("setPeers peers= ", res);
+                return res;
             });
-            if (!find) {
-                _peers.push(peerInfo);
-            }
-            console.log("setPeers peers= ", peers);
-            setPeers([..._peers]);
         }
+
+        room.onmessage = (msg) => {
+            const uint8Arr = new Uint8Array(msg.data);
+            const decodedString = String.fromCharCode.apply(null, uint8Arr);
+            const json  = JSON.parse(decodedString);
+            console.log("onmessage msg= ", msg, "json= ", json);
+            setMessages(messages=>{
+                if (uid != msg.from) {
+                    let _uid = 1;
+                    messages.push(
+                        new Message({
+                            id: _uid,
+                            message: json.msg.text,
+                            senderName: json.msg.name,
+                        })
+                    );
+                }
+                let res = [...messages];
+                console.log("setMessages msg= ", res);
+                return res;
+            });
+        };
 
         const joininfo = {
           sid: values.roomId,
@@ -169,25 +202,77 @@ function App() {
             rtc.ontrackevent = function (ev) {
                 console.log("ontrackevent: ", ev);
                 console.log( "[ontrackevent]: \nuid = ", ev.uid, " \nstate = ", ev.state, ", \ntracks = ", JSON.stringify(ev.tracks));
-                let _peers = peers;
-                _peers.forEach((item) => {
-                    ev.tracks.forEach((track) => {
-                        if (item.uid == ev.uid && track.kind == "video") {
-                            console.log("track=", track)
-                            // item["id"] = JSON.stringify(ev.tracks)[0].id;
-                            item["id"] = track.stream_id;
-                            console.log("ev.streams[0].id:::" + item["id"]);
-                        }
+                setPeers(peers=>{
+                    peers.forEach((item) => {
+                        ev.tracks.forEach((track) => {
+                            if (item.uid == ev.uid && track.kind == "video") {
+                                console.log("track=", track)
+                                // item["id"] = JSON.stringify(ev.tracks)[0].id;
+                                item["id"] = track.stream_id;
+                                console.log("ev.streams[0].id:::" + item["id"]);
+                            }
+                        });
                     });
-                });
-                setPeers([..._peers]);
+                    let res = [...peers];
+                    return res;
+                })
             }
+
+            rtc.ondatachannel = ({ channel }) => {
+                console.log("[ondatachannel] channel=", channel);
+                channel.onmessage = ({ data }) => {
+                    console.log("[ondatachannel] channel onmessage =", data);
+                };
+            };
 
             console.log("rtc.join")
             rtc.join(values.roomId, uid)
         });
 
     }
+
+    const onSendMessage = (msg) => {
+        console.log("broadcast to room: ", loginInfo.roomId, " message: " + msg);
+
+        var data = {
+            uid: uid,
+            name: loginInfo.displayName,
+            text: msg,
+        };
+        let map = new Map();
+        map.set('msg', data);
+        room.message(loginInfo.roomId, uid, "all", 'Map', map);
+
+        setMessages(messages=>{
+            let _uid = 0;
+            messages.push(
+                new Message({
+                    id: _uid,
+                    message: msg,
+                    senderName: "me",
+                })
+            );
+            let res = [...messages];
+            console.log("on send messages: ", res);
+            return res;
+        });
+    };
+
+    const onSystemMessage = (msg) => {
+        setMessages(messages=>{
+            let _uid = 2;
+            messages.push(
+                new Message({
+                    id: _uid,
+                    message: msg,
+                    senderName: "System",
+                })
+            );
+            let res = [...messages];
+            console.log("on system messages: ", res);
+            return res;
+        });
+    };
 
     const onFullScreenClickHandler = () => {
         let docElm = document.documentElement;
@@ -243,6 +328,15 @@ function App() {
         conference.current.muteMediaTrack("video", enabled);
     };
 
+    const handleScreenSharing = (enabled) => {
+        setScreenSharingEnabled(enabled);
+        conference.current.handleScreenSharing(enabled);
+    };
+
+    const openOrCloseLeftContainer = (collapsed) => {
+        setCollapsed(collapsed);
+    };
+
     const handleLeave = async () => {
         confirm({
         title: "Leave Now?",
@@ -260,7 +354,9 @@ function App() {
     return (
         <Layout className="app-layout">
             <Header className="app-header">
-                <div className="app-header-left"></div>
+                <div className="app-header-left">
+                    <MediaSettings onMediaSettingsChanged={onMediaSettingsChanged} settings={settings} />
+                </div>
                 {login ? (
                     <div className="app-header-tool">
                         <Tooltip title="Mute/Cancel">
@@ -293,13 +389,26 @@ function App() {
                             />
                         </Button>
                         </Tooltip>
-                        <Tooltip title="Hangup">
+                        <Tooltip title="Share desktop">
                             <Button
-                                shape="circle"
                                 ghost
                                 size="large"
-                                type="danger"
-                                style={{ marginLeft: 16, marginRight: 16 }}
+                                type="link"
+                                style={{ color: screenSharingEnabled ? "red" : "" }}
+                                onClick={() => handleScreenSharing(!screenSharingEnabled)}
+                            >
+                                <Icon
+                                    component={ screenSharingEnabled ? TelevisionOffIcon : TelevisionIcon }
+                                    style={{ display: "flex", justifyContent: "center" }}
+                                />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip title="Hangup">
+                            <Button
+                                ghost
+                                size="large"
+                                type="link"
+                                style={{ color: "red" }}
                                 onClick={handleLeave}
                             >
                                 <Icon
@@ -312,34 +421,56 @@ function App() {
                 ) : (
                     <div />
                 )}
-                <div className="app-header-right">
-                    <MediaSettings onMediaSettingsChanged={onMediaSettingsChanged} settings={settings} />
-                </div>
             </Header>        
             <Content className="app-center-layout">
                 {login ? (
-                    <Layout className="app-right-layout">
-                        <Content style={{ flex: 1 }}>
-                            <ForwardRefConference 
-                                ref={conference}
-                                uid={uid}
-                                rtc={rtc}
-                                settings={settings}
-                                peers={peers}
-                            />
-                        </Content>
-                        <div className="app-fullscreen-layout">
-                            <Tooltip title="Fullscreen/Exit">
+                    <Layout className="app-content-layout">
+                        <Sider
+                            width={320}
+                            style={{ background: "#333" }}
+                            collapsedWidth={0}
+                            trigger={null}
+                            collapsible
+                            collapsed={collapsed}
+                        >
+                            <div className="left-container">
+                                <ChatFeed messages={messages} onSendMessage={onSendMessage} />
+                            </div>
+                        </Sider>
+                        <Layout className="app-right-layout">
+                            <Content style={{ flex: 1 }}>
+                                <ForwardRefConference 
+                                    ref={conference}
+                                    uid={uid}
+                                    rtc={rtc}
+                                    settings={settings}
+                                    peers={peers}
+                                />
+                            </Content>
+                            <div className="app-collapsed-button">
+                                <Tooltip title="Open/Close chat panel">
                                 <Button
-                                    icon={isFullScreen ? "fullscreen-exit" : "fullscreen"}
-                                    ghost
+                                    icon={collapsed ? "right" : "left"}
                                     size="large"
                                     shape="circle"
-                                    className="app-fullscreen-button"
-                                    onClick={() => onFullScreenClickHandler()}
+                                    ghost
+                                    onClick={() => openOrCloseLeftContainer(!collapsed)}
                                 />
-                            </Tooltip>
-                        </div>
+                                </Tooltip>
+                            </div>
+                            <div className="app-fullscreen-layout">
+                                <Tooltip title="Fullscreen/Exit">
+                                    <Button
+                                        icon={isFullScreen ? "fullscreen-exit" : "fullscreen"}
+                                        ghost
+                                        size="large"
+                                        shape="circle"
+                                        className="app-fullscreen-button"
+                                        onClick={() => onFullScreenClickHandler()}
+                                    />
+                                </Tooltip>
+                            </div>
+                        </Layout>
                     </Layout>
                 ) : loading ? (
                     <Spin size="large" tip="Joining..." />

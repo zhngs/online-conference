@@ -10,12 +10,12 @@
   align-items: center;
 }
 
-.app-header-right {
+.app-header-left {
   margin-right: 8px;
   min-width: 120px;
   display: flex;
   flex-direction: row;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
 }
 
@@ -25,6 +25,11 @@
   align-items: center;
   width: 100%;
   min-height: 540px;
+}
+
+.app-content-layout {
+  width: 100%;
+  height: 100%;
 }
 
 .app-login-card {
@@ -41,4 +46,26 @@
   position: absolute;
   right: 16px;
   bottom: 16px;
+}
+
+.app-collapsed-button {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+}
+
+.app-header-tool {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.left-container{
+  width: 320px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
